@@ -4,22 +4,19 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from loguru import logger
 
-from src.db.session import create_tables
+from src.db.session import close_db, init_db
+from src.modules.voice.dependencies import close_voice_dependencies
+from src.modules.profiles.repository import get_profile_repository
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    logger.info("Starting up Atom API...")
-    
-    """
-    Create database tables
-    https://docs.sqlalchemy.org/en/13/core/metadata.html#creating-and-dropping-database-tables
-    This method will issue queries that first check for the existence of each individual table, and if not found will issue the CREATE statements.
-    """
-    await create_tables()
-    logger.info("Database tables created successfully")
-    
+    logger.info("Starting up Kira API...")
+    await init_db()
+    get_profile_repository()
+    logger.info("Application dependencies initialized successfully")
     yield
-    
-    logger.info("Shutting down Atom API...")
+    await close_voice_dependencies()
+    await close_db()
+    logger.info("Shutting down Kira API...")
     logger.info("Cleanup completed successfully")

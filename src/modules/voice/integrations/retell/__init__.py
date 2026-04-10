@@ -1,0 +1,1 @@
+"""Retell-specific integration adapter."""
