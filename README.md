@@ -1,514 +1,444 @@
-# 🚀 Atom - FastAPI Application Skeleton
+# Kira
 
-**Atom** is a complete, ready-to-use skeleton for building FastAPI applications. Think of it as a starter template that includes all the common stuff you need when building a real-world API, so you can focus on your business logic instead of setting up the basics over and over again.
+Kira is a parent-facing guidance system that turns student data into short, conversational answers over text and phone.
 
-## 🎯 What is This?
+At a product level, the idea is simple: a parent asks, "How is my child doing?" and Kira replies in plain language using the student's profile, recent conversation context, and a running summary of the thread.
 
-This is a **production-ready foundation** for FastAPI apps. It's like getting a pre-built house foundation - all the essential infrastructure is already there, you just need to build your specific features on top of it.
+At an implementation level, this repo is a FastAPI application with:
 
-### What's Included ✅
-- **User management** (create, list, get users)
-- **Database setup** with async SQLAlchemy
-- **Background task processing** (for sending emails, etc.)
-- **Proper logging** that actually helps you debug issues
-- **Security middleware** (CORS, security headers)
-- **Comprehensive testing** (unit tests + load testing)
-- **Clean, organized code structure**
-- **Configuration management** (development vs production settings)
-- **Error handling** that returns proper error messages
-- **Docker setup** (Dockerfile + docker-compose.yml with Redis)
+- a text conversation API
+- a voice module with Redis-backed live call session state
+- a Retell adapter for inbound phone calls and live websocket turn handling
+- an OpenAI-backed agent runtime for answer generation and summary refresh
+- fixture-backed parent/student data used as the current source of truth
 
-### What's NOT Included ❌
-- **Authentication** (JWT, OAuth, etc.) - every app needs different auth
-- **Deployment scripts** - depends on where you deploy (AWS, Google Cloud, etc.)
-- **Specific business logic** - that's what you'll build!
+This README is written as an engineer-to-engineer guide. The goal is to help you understand how the system behaves today, where the boundaries are, and how to run or extend it without reading the whole codebase first.
 
-## 🏗️ Project Structure
+## Overview
 
-Here's how the code is organized and why:
+High-level, Kira works like this:
 
+1. A parent identifies themselves by phone number.
+2. Kira loads the matching parent profile and the students attached to that profile.
+3. For each parent turn, Kira tries to resolve which student the message is about.
+4. Kira builds a prompt from:
+   - the selected student profile
+   - the saved conversation summary, if one exists
+   - a reduced recent message window
+5. The model generates a parent-facing answer.
+6. Both the parent message and the Kira response are stored in the conversation transcript.
+7. On longer threads, Kira periodically refreshes a saved summary so future turns do not have to rely on the full transcript.
+
+The same core conversation logic is reused for both:
+
+- text requests through the REST API
+- live voice turns coming from Retell
+
+## How The Project Works
+
+### Text flow
+
+The text path is the simplest way to understand the system.
+
+1. A client starts a conversation through `POST /api/v1/conversations/start`.
+2. Kira looks up the parent by phone number in the profile repository.
+3. Kira creates a conversation row and writes an opening greeting as the first agent message.
+4. Each parent message goes through `POST /api/v1/conversations/{conversation_id}/messages`.
+5. Kira saves the parent message first.
+6. The agent resolves the student for that turn.
+7. If the student cannot be resolved, Kira returns a clarification message without making a model call.
+8. If the student is resolved, Kira builds the answer prompt and calls the model.
+9. Kira stores the agent reply, updates per-message metadata, and refreshes the summary when the configured cadence is reached.
+
+The important design choice here is that persistence happens before and after generation:
+
+- user message is saved
+- model runs
+- agent message is saved
+
+That keeps the transcript authoritative and easy to inspect.
+
+### Student resolution
+
+Student resolution is intentionally conservative. The current order is:
+
+1. direct student name match
+2. family relation match like `son` or `daughter`
+3. previous resolved student from recent conversation context
+4. clarification required
+
+That means a follow-up like `How is he doing in maths?` works only if a previous turn already resolved the student. We are not doing true pronoun understanding. We are reusing the most recent resolved student when the latest message does not identify one clearly enough.
+
+### Prompt building
+
+The answer prompt currently contains:
+
+- a base system prompt telling Kira how to sound
+- a grounding message with:
+  - parent name
+  - available students
+  - selected student
+  - school information
+  - profile strengths and improvement areas
+  - school performance
+  - interest signals
+  - career signals
+  - recent activity
+  - saved conversation summary
+- recent conversation messages converted into LangChain message objects
+
+The summary is used as prompt context, not as a separate deterministic reasoning layer. In other words, the model sees the summary and can use it, but the code is not making independent decisions from the summary outside the model call.
+
+### Summary refresh
+
+Kira keeps a rolling summary of longer conversations.
+
+Current default behavior:
+
+- first summary is generated after 10 completed parent turns
+- after that, it refreshes every 3 parent turns
+
+This summary exists to keep long conversations manageable. Once a summary exists, Kira does not need to send the full transcript on every future turn.
+
+### Voice flow
+
+The voice path is built on top of the same conversation logic, but with a provider-neutral voice service plus a Retell-specific adapter.
+
+Current voice flow:
+
+1. Retell sends an inbound webhook to `/integrations/retell/inbound-call`.
+2. Kira verifies the webhook signature.
+3. Kira looks up the caller phone number.
+4. If the caller is known:
+   - create a `voice_call` conversation
+   - create a Redis-backed live session record
+   - return `override_agent_id` plus metadata including `conversation_id`
+5. Retell opens the custom LLM websocket at `/integrations/retell/llm-websocket/{call_id}`.
+6. Kira sends the required initial websocket config event.
+7. Retell sends `call_details`, and Kira binds the websocket session back to the stored conversation.
+8. When Retell sends `response_required`, Kira persists the caller turn, generates or scripts the answer, persists the agent message, and returns a Retell `response` event.
+9. When Retell sends `reminder_required`, Kira uses the voice reminder flow:
+   - first reminder: `Can I help you with something else?`
+   - next reminder after continued silence: silence-specific farewell and end call
+10. Retell lifecycle webhooks update the saved conversation status when the call starts or ends.
+
+Unknown callers are handled as a voice-specific special case:
+
+- no conversation row is created
+- Retell still routes the call to the voice agent
+- the websocket immediately returns a static line telling the caller to use their registered number
+- the call ends
+
+## Codebase Tour
+
+The project is organized by module rather than by technical layer alone.
+
+```text
+src/
+  core/
+    config.py              # Settings and environment variables
+    events.py              # App lifespan setup
+    router.py              # Main router composition and /health
+  db/
+    session.py             # SQLAlchemy engine/session setup
+  middlewares/
+    request_id.py          # Request logging with request ids
+  modules/
+    agent/
+      graph.py             # LangGraph runtime wiring
+      nodes.py             # Student resolution, answer generation, summary refresh
+      models.py            # OpenAI model client construction and feature routing
+      prompts.py           # Prompt building for answers and summaries
+    conversations/
+      router.py            # REST endpoints for text conversation flow
+      service.py           # Core conversation orchestration
+      repository.py        # Conversation persistence and context-window logic
+      metadata.py          # Per-message metadata and usage/cost shaping
+      schemas.py           # API request/response models
+    profiles/
+      repository.py        # Parent lookup and student resolution
+      schemas.py           # Parent/student fixture schema normalization
+      fixtures/
+        parent_profiles.json
+    voice/
+      service.py           # Provider-neutral voice use cases
+      session_store.py     # Redis/in-memory live call session state
+      policies.py          # Progress, follow-up, close, and fallback messages
+      integrations/
+        retell/
+          router.py        # Thin Retell HTTP/websocket endpoints
+          adapter.py       # Retell webhook handling
+          websocket_session.py
+          security.py
+          protocol.py
 ```
-atom/
-├── src/                          # All our application code
-│   ├── core/                     # Foundation stuff (config, logging, events)
-│   ├── middlewares/              # Security and request processing
-│   ├── exceptions/               # Error handling
-│   ├── db/                       # Database connection and setup
-│   ├── modules/                  # Your app features (users, products, etc.)
-│   │   └── users/               # Example: user management
-│   │       ├── model.py         # Database table definition
-│   │       ├── schemas.py       # Data validation (what comes in/goes out)
-│   │       ├── service.py       # Business logic (the actual work)
-│   │       └── router.py        # API endpoints (URLs)
-│   ├── workers/                  # Background tasks
-│   └── main.py                   # Starts everything up
-├── tests/                        # All test code (mirrors src structure)
-├── data/                         # Database files (SQLite)
-├── requirements.txt              # Python packages we need
-├── .env-example                  # Configuration template
-├── .env.docker                   # Docker-specific environment
-├── Dockerfile                    # Docker image definition
-├── docker-compose.yml            # Multi-container setup
-├── .dockerignore                 # Files to exclude from Docker builds
-└── README.md                     # This file
-```
 
-## 🚀 Quick Start
+## Important Boundaries
 
-Choose between running locally or using Docker:
+### `profiles`
 
-### Option 1: Local Development
+This module is the current source of truth for parent and student data.
 
-#### 1. Get the Code
+Right now it is fixture-backed. The rest of the system talks to the `ProfileRepository`, not directly to the JSON file, so the data source can be replaced later without rewriting the conversation or voice code.
+
+### `conversations`
+
+This is the core application flow.
+
+If you want to understand the business behavior of Kira, start here:
+
+- conversation creation
+- message persistence
+- summary cadence
+- API response shaping
+
+### `agent`
+
+This module decides which student the turn is about, builds prompts, calls the LLM, and optionally refreshes the summary.
+
+The agent is intentionally simple:
+
+- deterministic resolution and clarification path
+- model call only when we actually need an answer or summary
+
+### `voice`
+
+This module is provider-neutral on purpose.
+
+It owns:
+
+- inbound caller acceptance
+- live call session state
+- per-turn persistence and dedupe
+- scripted follow-up / close behavior
+
+### `voice/integrations/retell`
+
+This is the only place that should know about Retell-specific payloads, websocket event names, signature verification, and response envelopes.
+
+That separation is important because we do not want the rest of the system tightly coupled to one voice vendor.
+
+## Current APIs
+
+### Conversation API
+
+- `POST /api/v1/conversations/start`
+- `POST /api/v1/conversations/{conversation_id}/messages`
+- `GET /api/v1/conversations/{conversation_id}`
+
+### Voice / Retell integration
+
+- `POST /integrations/retell/inbound-call`
+- `WS /integrations/retell/llm-websocket/{call_id}`
+- `POST /integrations/retell/webhook`
+
+### Operational endpoints
+
+- `GET /`
+- `GET /health`
+
+`/health` currently reports:
+
+- database health
+- voice session store health
+- in-memory voice metrics snapshot
+
+Those voice metrics are process-local counters. They are useful for quick runtime visibility, but they are not durable metrics storage.
+
+## Models And LLM Configuration
+
+The system uses `langchain-openai` with `ChatOpenAI`, configured to use the OpenAI Responses API.
+
+Current feature routing:
+
+- parent answer generation: `gpt-5-mini`
+- conversation summary refresh: `gpt-5-nano`
+
+Current configured LLM parameters:
+
+- `base_url`
+- `timeout`
+- `reasoning_effort`
+- `use_responses_api=True`
+- `stream_usage=True`
+
+We are not currently setting things like:
+
+- `temperature`
+- `max_output_tokens`
+- `top_p`
+- penalties
+- `seed`
+
+So those are currently using provider/client defaults rather than app-defined values.
+
+## Local Development
+
+### Prerequisites
+
+You need:
+
+- Python 3.12
+- Redis
+- PostgreSQL if you use the default `DATABASE_URL`
+- an OpenAI API key for answer generation
+- Retell credentials only if you want to exercise the voice path
+
+### Install dependencies
+
 ```bash
-# Clone or download this repository
-cd atom
-```
-
-#### 2. Set Up Your Environment
-```bash
-# Create a virtual environment (recommended)
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install all dependencies
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-#### 3. Configure Your App
-```bash
-# Copy the example environment file
-cp .env-example .env
+If you use `uv`, that works fine too, but the repo is currently documented around `requirements.txt`.
 
-# Edit .env with your settings (database URL, etc.)
-# The defaults work fine for development
+### Configure environment
+
+```bash
+cp .env-example .env
 ```
 
-#### 4. Run the Application
+Minimum settings for text flow:
+
+- `DATABASE_URL`
+- `OPENAI_API_KEY`
+- `LLM_PROVIDER`
+- `LLM_MODEL`
+
+Minimum extra settings for voice flow:
+
+- `RETELL_API_KEY`
+- `RETELL_INBOUND_VOICE_AGENT_ID`
+- `RETELL_VERIFY_SIGNATURES`
+- Redis connection settings
+
+### Database setup
+
+Important nuance: the app initializes the SQLAlchemy engine on startup, but it does not create or migrate schema automatically for you.
+
+So for a fresh local environment, run migrations explicitly:
+
+```bash
+alembic upgrade head
+```
+
+If you keep the default config, you also need a Postgres instance available at:
+
+```text
+postgresql+asyncpg://kira:kira@localhost:5432/kira
+```
+
+### Run the app
+
 ```bash
 python -m src.main
 ```
 
-Your API will be running at `http://localhost:8000`
+Then open:
 
-### Option 2: Docker Compose (Recommended)
+- `http://localhost:8000/docs`
+- `http://localhost:8000/health`
 
-#### 1. Get the Code
+Swagger docs are enabled only in development mode.
+
+## Docker
+
+There is a `Dockerfile` and a `docker-compose.yml`, but there is one important caveat:
+
+- Docker Compose currently provisions the app container and Redis
+- it does not provision Postgres
+
+So Docker Compose is useful, but you still need to point `DATABASE_URL` at a reachable database.
+
+Run:
+
 ```bash
-# Clone or download this repository
-cd atom
-```
-
-#### 2. Run with Docker Compose
-```bash
-# Build and start all services (app + Redis)
 docker-compose up --build
-
-# Or run in detached mode (background)
-docker-compose up --build -d
-
-# View logs
-docker-compose logs -f app
-
-# Stop services
-docker-compose down
 ```
 
-Your API will be running at `http://localhost:8000`
+## Retell Setup Notes
 
-**What's included in Docker setup:**
-- FastAPI application container
-- Redis container for background tasks
-- Automatic service networking
-- Health checks
-- Volume persistence for SQLite database
+If you want to test the phone flow, configure all three parts:
 
-### Try It Out
-- **API Documentation**: `http://localhost:8000/docs` (interactive!)
-- **Health Check**: `http://localhost:8000/health`
-- **Create a User**: POST to `http://localhost:8000/api/v1/users`
+1. Number-level inbound webhook
+   - `/integrations/retell/inbound-call`
+2. Custom LLM websocket URL on the Retell agent
+   - `wss://<your-host>/integrations/retell/llm-websocket/`
+3. Lifecycle webhook
+   - `/integrations/retell/webhook`
 
-## 🧪 Testing
+Important practical notes:
 
-We've included comprehensive testing so you can be confident your app works correctly.
+- Use `wss://`, not `ws://`, for the public websocket URL.
+- `Run Test` in the Retell agent UI is a `web_call`, not a real inbound phone call.
+- The real phone path depends on the number-level inbound webhook because that is where Kira creates the conversation and injects `conversation_id` metadata.
 
-### Run Unit Tests
+## Testing
+
+Run the full suite:
+
 ```bash
-# Run all tests
 pytest
-
-# Run tests with coverage (see how much code is tested)
-pytest --cov=src --cov-report=html
-
-# Run tests in parallel (faster)
-pytest -n auto
 ```
 
-### Run Load Tests
-Load testing helps you see how your app performs under heavy traffic.
+Useful focused runs:
 
 ```bash
-# First, make sure your app is running
-python src/main.py
-
-# In another terminal, run load tests
-# Interactive mode (opens web interface)
-locust -f tests/load_tests/locustfile.py --host=http://localhost:8000
-
-# Headless mode (run from command line)
-locust -f tests/load_tests/locustfile.py --host=http://localhost:8000 --headless -u 10 -r 2 -t 30s
+pytest tests/modules/conversations/test_api.py
+pytest tests/integrations/retell/test_retell_api.py
+pytest tests/integrations/retell/test_security.py
 ```
 
-## 🏛️ Architecture Explained (The Simple Version)
+The current tests cover:
 
-We've organized the code using **Clean Architecture** principles. Here's what that means in simple terms:
+- conversation start and message flow
+- student resolution continuity
+- clarification behavior
+- summary cadence
+- message ordering
+- phone normalization
+- Retell inbound webhook behavior
+- Retell websocket response flow
+- Retell reminder and close behavior
+- Retell signature verification
 
-### Layers (from outside to inside)
-1. **API Layer** (`router.py`) - Handles HTTP requests and responses
-2. **Service Layer** (`service.py`) - Contains your business logic
-3. **Database Layer** (`model.py`) - Talks to the database
-4. **Core Layer** (`core/`) - Configuration and utilities
+## Current Limitations
 
-### Why This Structure?
-- **Easy to test** - You can test business logic without HTTP requests
-- **Easy to change** - Want to switch databases? Only change one layer
-- **Easy to understand** - Each file has one clear purpose
-- **Easy to scale** - Add new features by adding new modules
+A few things are intentionally simple right now:
 
-## 🔧 Core Components
+- parent/student data is fixture-backed
+- the answer prompt is still a broad grounding block rather than a more selective fact-gathering pipeline
+- LLM generation parameters are only partially pinned
+- voice metrics are in-memory only
+- the voice integration is provider-neutral at the service layer, but Retell is the only implemented adapter
 
-### Configuration (`src/core/config.py`)
-All your app settings in one place. Uses environment variables so you can have different settings for development vs production.
+None of those are hidden assumptions. They are just the current stage of the system.
 
-```python
-# Example: database URL comes from environment
-DATABASE_URL=sqlite+aiosqlite:///./atom.db  # Development
-DATABASE_URL=postgresql+asyncpg://...       # Production
-```
+## Suggested Reading Order
 
-### Logging (`src/core/logging.py`)
-Uses **Loguru** instead of Python's built-in logging because it's much easier to use and more powerful.
+If you are new to the repo, this is the order I would recommend:
 
-```python
-from loguru import logger
-logger.info("User created successfully")  # That's it!
-```
+1. [src/main.py](src/main.py)
+2. [src/core/router.py](src/core/router.py)
+3. [src/modules/conversations/service.py](src/modules/conversations/service.py)
+4. [src/modules/profiles/repository.py](src/modules/profiles/repository.py)
+5. [src/modules/agent/nodes.py](src/modules/agent/nodes.py)
+6. [src/modules/agent/prompts.py](src/modules/agent/prompts.py)
+7. [src/modules/voice/service.py](src/modules/voice/service.py)
+8. [src/modules/voice/integrations/retell/websocket_session.py](src/modules/voice/integrations/retell/websocket_session.py)
 
-### Database (`src/db/`)
-- **Async SQLAlchemy** for database operations
-- **Connection pooling** for better performance
-- **Automatic table creation** on startup
+That path gives you:
 
-### Middleware (`src/middlewares/`)
-- **CORS** - Lets your frontend talk to your API
-- **Security Headers** - Protects against common attacks
-- **Error Handling** - Returns nice error messages instead of crashes
+- app wiring
+- text conversation behavior
+- student resolution
+- prompt generation
+- voice reuse of the same core logic
 
-### Background Tasks (`src/workers/`)
-Uses **Dramatiq** for tasks that should happen in the background (like sending emails).
+## Why Kira Exists
 
-```python
-# Example: Send welcome email after user signup
-send_welcome_email.send(user_id, user_email)  # Happens in background
-```
+This project is not trying to build another dashboard.
 
-## 📝 Adding New Features
-
-Want to add a "products" module? Here's how:
-
-### 1. Create the Module Structure
-```bash
-mkdir src/modules/products
-touch src/modules/products/__init__.py
-touch src/modules/products/model.py      # Database table
-touch src/modules/products/schemas.py    # Data validation  
-touch src/modules/products/service.py    # Business logic
-touch src/modules/products/router.py     # API endpoints
-```
-
-### 2. Create the Database Model
-```python
-# src/modules/products/model.py
-from sqlalchemy import Column, String, Float
-from src.db.base import Base
-
-class Product(Base):
-    __tablename__ = "products"
-    
-    name = Column(String, nullable=False)
-    price = Column(Float, nullable=False)
-    description = Column(String)
-```
-
-### 3. Create Schemas for Data Validation
-```python
-# src/modules/products/schemas.py
-from pydantic import BaseModel
-
-class ProductCreate(BaseModel):
-    name: str
-    price: float
-    description: str = None
-
-class ProductResponse(ProductCreate):
-    id: str
-    created_at: datetime
-```
-
-### 4. Add Business Logic
-```python
-# src/modules/products/service.py
-async def create_product(db: AsyncSession, product_data: ProductCreate):
-    # Your business logic here
-    pass
-```
-
-### 5. Create API Endpoints
-```python
-# src/modules/products/router.py
-from fastapi import APIRouter
-
-router = APIRouter(prefix="/products", tags=["products"])
-
-@router.post("/")
-async def create_product(...):
-    # Your endpoint logic here
-    pass
-```
-
-### 6. Register Your Router
-```python
-# src/main.py
-from src.modules.products.router import router as products_router
-app.include_router(products_router, prefix="/api/v1")
-```
-
-### 7. Add Tests
-```python
-# tests/modules/products/test_products_routes.py
-async def test_create_product():
-    # Your tests here
-    pass
-```
-
-## 🌍 Environment Variables
-
-Copy `.env-example` to `.env` and customize:
-
-```bash
-# App Settings
-APP_NAME=Your App Name
-ENVIRONMENT=development  # or production
-DEBUG=true
-
-# Database
-DATABASE_URL=sqlite+aiosqlite:///./your_app.db
-
-# Redis (for background tasks)
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# Security
-CORS_ORIGINS=["http://localhost:3000", "http://localhost:8080"]
-```
-
-## 📈 Production Readiness
-
-This skeleton is production-ready out of the box:
-
-### Performance Features
-- **Async everywhere** - Handles many requests simultaneously
-- **Connection pooling** - Efficient database usage
-- **Background tasks** - Don't make users wait for slow operations
-
-### Security Features
-- **CORS protection** - Controls which websites can call your API
-- **Security headers** - Protects against common attacks
-- **Input validation** - Prevents bad data from causing problems
-
-### Monitoring & Debugging
-- **Structured logging** - Easy to search and analyze logs
-- **Health checks** - Monitor if your app is running properly
-- **Error tracking** - Proper error messages for debugging
-
-## 🤔 Frequently Asked Questions
-
-### Why async instead of regular Python?
-
-**Simple answer**: It's much faster for web APIs.
-
-**Longer answer**: When someone makes a request to your API, there's often waiting involved (database queries, calling other APIs, etc.). With regular Python, your app sits there doing nothing during the wait. With async, your app can handle other requests while waiting. This means you can handle many more users with the same hardware.
-
-```python
-# Regular Python - blocks while waiting
-def get_user(user_id):
-    user = database.get(user_id)  # Waits here, can't do anything else
-    return user
-
-# Async Python - can handle other requests while waiting  
-async def get_user(user_id):
-    user = await database.get(user_id)  # Waits here, but handles other requests
-    return user
-```
-
-### Why SQLAlchemy 2.x with async?
-
-**Simple answer**: It's the best way to talk to databases in async Python.
-
-**Longer answer**: SQLAlchemy is like a translator between Python and databases. Version 2.x has much better async support and cleaner syntax. The async part is important because database operations are slow, and async lets your app stay responsive while waiting for the database.
-
-### Why this specific folder structure?
-
-**Simple answer**: It keeps things organized and makes it easy to find code.
-
-**Longer answer**: We separate code by what it does:
-- `core/` - Basic app setup (config, logging)
-- `modules/` - Your features (users, products, etc.)
-- `db/` - Database connection stuff
-- `middlewares/` - Security and request processing
-- `workers/` - Background tasks
-
-This way, when you need to find or change something, you know exactly where to look.
-
-### Why Dramatiq for background tasks?
-
-**Simple answer**: It's reliable and easy to use.
-
-**Longer answer**: Some tasks shouldn't make users wait (sending emails, processing images, etc.). Dramatiq lets you run these tasks in the background. It's more reliable than other options because it uses Redis to remember tasks even if your app restarts.
-
-```python
-# Without background tasks - user waits
-def signup_user(email):
-    create_user_in_database(email)
-    send_welcome_email(email)  # User waits for email to send
-    return "User created"
-
-# With background tasks - user doesn't wait
-def signup_user(email):
-    create_user_in_database(email)
-    send_welcome_email.send(email)  # Happens in background
-    return "User created"  # Returns immediately
-```
-
-### Why Loguru instead of Python's built-in logging?
-
-**Simple answer**: It's much easier to use and more powerful.
-
-**Longer answer**: Python's built-in logging requires lots of setup and configuration. Loguru works great with just one line:
-
-```python
-# Built-in logging - lots of setup
-import logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
-logger = logging.getLogger(__name__)
-logger.info("Something happened")
-
-# Loguru - just works
-from loguru import logger
-logger.info("Something happened")
-```
-
-Plus, Loguru automatically rotates log files, handles colors, and has better formatting.
-
-### Why these specific middleware?
-
-**Simple answer**: They protect your app and make it work better.
-
-**Longer answer**:
-- **CORS middleware** - Lets your frontend (React, Vue, etc.) talk to your API safely
-- **Security headers middleware** - Adds headers that protect against common attacks
-
-### Why separate schemas from models?
-
-**Simple answer**: They do different jobs.
-
-**Longer answer**:
-- **Models** (`model.py`) - Describe your database tables
-- **Schemas** (`schemas.py`) - Describe what data comes in and goes out of your API
-
-This separation means you can change your API without changing your database, or vice versa.
-
-```python
-# Model - what's in the database
-class User(Base):
-    id = Column(String, primary_key=True)
-    email = Column(String, unique=True)
-    password_hash = Column(String)  # Never return this!
-    
-# Schema - what the API returns (no password!)
-class UserResponse(BaseModel):
-    id: str
-    email: str
-    # password_hash not included for security
-```
-
-### Why comprehensive testing?
-
-**Simple answer**: So you know your app works correctly.
-
-**Longer answer**: Tests automatically check that your app works as expected. When you make changes, tests catch problems before your users do. We include:
-- **Integration tests** - Test that different parts work together  
-- **Load tests** - Test how your app handles heavy traffic
-
-### Why clean architecture?
-
-**Simple answer**: It makes your code easier to work with as it grows.
-
-**Longer answer**: Clean architecture separates different concerns into different layers:
-- **Presentation** (routers) - Handles HTTP stuff
-- **Business logic** (services) - Your actual app logic
-- **Data** (models) - Database stuff
-
-This means you can:
-- Test business logic without HTTP requests
-- Change databases without changing business logic
-- Add new ways to access your app (REST API, GraphQL, etc.) without changing business logic
-
-### Why not include authentication?
-
-**Simple answer**: Every app needs different authentication.
-
-**Longer answer**: Some apps need:
-- Simple username/password
-- OAuth (Google, GitHub login)
-- JWT tokens
-- API keys
-- SAML for enterprise
-
-Instead of picking one that might not fit your needs, we left it out so you can add exactly what you need.
-
-### Why not include deployment scripts?
-
-**Simple answer**: Every deployment is different.
-
-**Longer answer**: You might deploy to:
-- AWS (Elastic Beanstalk, ECS, Lambda)
-- Google Cloud (Cloud Run, App Engine)
-- Heroku
-- Your own servers with Docker
-- Kubernetes
-
-Each has different requirements, so we focused on making the app deployment-ready rather than picking one deployment method.
-
----
-
-## Resources
-- https://docs.pydantic.dev/latest/concepts/pydantic_settings/
-- 
-
----
-
-## 🎉 What's Next?
-
-1. **Start building your features** - Add your own modules following the examples
-2. **Add authentication** - Choose the auth method that fits your needs
-3. **Set up deployment** - Pick your hosting platform and deploy
-4. **Monitor and scale** - Use the logging and health checks to monitor your app
-
-## 🤝 Contributing
-
-Found something that could be improved? Have an idea for a feature that would help many FastAPI projects? Feel free to contribute! This skeleton is meant to evolve with common needs.
-
----
-
-**Happy coding! 🚀**
+The core bet is that a parent often does not want to inspect charts, tables, and feature screens. They want to ask a direct question in natural language and get a direct, grounded answer back. The entire repo is organized around making that interaction reliable, debuggable, and extensible across both text and voice.

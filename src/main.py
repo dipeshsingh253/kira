@@ -9,8 +9,13 @@ from src.exceptions.handlers import setup_exception_handlers
 from src.middlewares.cors import setup_cors
 from src.middlewares.request_id import setup_request_id_middleware
 from src.middlewares.security_headers import setup_security_headers
-from src.workers.broker import setup_dramatiq
 from src.core.constants import ENV_DEVELOPMENT
+
+try:
+    from src.workers.broker import setup_dramatiq
+except ModuleNotFoundError:  # pragma: no cover - optional worker package
+    def setup_dramatiq() -> None:
+        logger.warning("Dramatiq setup skipped because src.workers is not available")
 
 
 def create_app() -> FastAPI:
@@ -59,7 +64,7 @@ def create_app() -> FastAPI:
     main_router = setup_routers()
     app.include_router(main_router)
 
-    # TODO: Need to implement more effecient logging strategy
+    # TODO: Need to implement more efficient logging strategy
     logger.info("Application setup completed successfully")
     return app
 

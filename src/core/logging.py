@@ -46,7 +46,7 @@ def setup_logging() -> None:
         log_dir.mkdir(exist_ok=True)
         
         logger.add(
-            log_dir / "atom.log",
+            log_dir / "kira.log",
             format=settings.log_format,
             level=settings.log_level,
             rotation="10 MB",
