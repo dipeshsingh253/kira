@@ -34,6 +34,105 @@ The same core conversation logic is reused for both:
 - text requests through the REST API
 - live voice turns coming from Retell
 
+## Tech Stack
+
+This project is built with a fairly focused Python backend stack:
+
+- **Backend framework:** FastAPI
+- **Application runtime:** Python 3.12
+- **Database access:** SQLAlchemy async ORM
+- **Primary database:** PostgreSQL via `asyncpg`
+- **Migrations:** Alembic
+- **Live voice session store:** Redis
+- **LLM orchestration:** LangChain + LangGraph
+- **LLM provider:** OpenAI Responses API through `langchain-openai`
+- **Voice provider:** Retell
+- **Validation and settings:** Pydantic + `pydantic-settings`
+- **Logging:** Loguru
+- **Testing:** Pytest
+
+In simpler terms, the stack is:
+
+- FastAPI for the HTTP and websocket server
+- PostgreSQL for persisted conversation data
+- Redis for temporary live call state
+- OpenAI for answer generation and summary refresh
+- Retell for phone call handling and realtime voice transport
+
+## Quick Start
+
+If you just want to run Kira locally and see the text flow working, this is the shortest path.
+
+### 1. Create and activate a virtual environment
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 2. Copy the example environment file
+
+```bash
+cp .env-example .env
+```
+
+At minimum, set these values in `.env`:
+
+- `DATABASE_URL`
+- `OPENAI_API_KEY`
+
+If you keep the default database URL, make sure Postgres is running at:
+
+```text
+postgresql+asyncpg://kira:kira@localhost:5432/kira
+```
+
+### 3. Start Redis
+
+Voice sessions use Redis, and the `/health` endpoint checks it too.
+
+If you already have Redis installed locally:
+
+```bash
+redis-server
+```
+
+### 4. Run migrations
+
+```bash
+alembic upgrade head
+```
+
+### 5. Start the app
+
+```bash
+python -m src.main
+```
+
+### 6. Check that it is up
+
+Open:
+
+- `http://localhost:8000/health`
+- `http://localhost:8000/docs`
+
+If you only want to validate the text path first, you can stop here.
+
+### 7. Optional: exercise the voice path
+
+For Retell voice testing, you also need:
+
+- `RETELL_API_KEY`
+- `RETELL_INBOUND_VOICE_AGENT_ID`
+- a public HTTPS/WSS URL such as ngrok
+
+Then point Retell at:
+
+- inbound webhook: `/integrations/retell/inbound-call`
+- lifecycle webhook: `/integrations/retell/webhook`
+- custom LLM websocket: `wss://<your-host>/integrations/retell/llm-websocket/`
+
 ## How The Project Works
 
 ### Text flow
