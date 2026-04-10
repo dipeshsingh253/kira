@@ -1,0 +1,553 @@
+{
+  "parents": [
+    {
+      "parent_id": "parent-dipesh-001",
+      "phone": "9265805191",
+      "name": "Dipesh Singh",
+      "students": [
+        {
+          "student_id": "student-ravi-001",
+          "relation": "son",
+          "username": "ravi10",
+          "basic_profile": {
+            "name": "Ravi Sharma",
+            "grade": "10",
+            "school": "Green Valley Public School",
+            "previous_academic": {
+              "percentage": 84
+            },
+            "favourite_subjects": ["Science", "Mathematics"],
+            "career_interests": ["Environmental Science", "Engineering", "Robotics"],
+            "preferred_learning_style": "Hands-on and practical"
+          },
+          "school_performance": {
+            "overall": {
+              "status": "good",
+              "trend": "stable"
+            },
+            "subjects": [
+              {
+                "subject": "Mathematics",
+                "status": "strong",
+                "trend": "stable"
+              },
+              {
+                "subject": "Science",
+                "status": "strong",
+                "trend": "improving"
+              },
+              {
+                "subject": "English",
+                "status": "needs_attention",
+                "trend": "mixed"
+              },
+              {
+                "subject": "Social Studies",
+                "status": "average",
+                "trend": "stable"
+              }
+            ]
+          },
+          "platform_activity": {
+            "summary": {
+              "sessions": 31,
+              "quizzes_attempted": 18,
+              "simulations_completed": 11
+            }
+          },
+          "interest_signals": [
+            {
+              "area": "Environmental Science",
+              "score": 0.86
+            },
+            {
+              "area": "Practical Problem Solving",
+              "score": 0.83
+            },
+            {
+              "area": "Robotics and Technical Systems",
+              "score": 0.79
+            }
+          ],
+          "skill_signals": [
+            {
+              "skill": "Analytical Reasoning",
+              "score": 0.76
+            },
+            {
+              "skill": "Scenario-based Decision Making",
+              "score": 0.74
+            },
+            {
+              "skill": "Written Explanation",
+              "score": 0.52
+            }
+          ],
+          "behavioral_traits": [
+            {
+              "trait": "Curiosity",
+              "level": "high"
+            },
+            {
+              "trait": "Persistence",
+              "level": "good"
+            },
+            {
+              "trait": "Confidence in unfamiliar tasks",
+              "level": "moderate"
+            }
+          ],
+          "career_signals": [
+            {
+              "career": "Hydrologist",
+              "affinity": 0.84
+            },
+            {
+              "career": "Environmental Engineer",
+              "affinity": 0.8
+            },
+            {
+              "career": "Robotics Engineer",
+              "affinity": 0.74
+            }
+          ],
+          "recent_activity": [
+            {
+              "type": "career_simulation",
+              "title": "Rural Water Source Allocation Challenge"
+            },
+            {
+              "type": "quiz",
+              "title": "Water Systems Basics Quiz"
+            },
+            {
+              "type": "career_exploration",
+              "title": "Hydrologist Path Overview"
+            }
+          ],
+          "profile_summary": {
+            "strengths": [
+              "Shows strong interest in practical science problems",
+              "Engages well in applied learning activities",
+              "Performs consistently in school Mathematics and Science"
+            ],
+            "improvement_areas": [
+              "Needs stronger written explanation of ideas",
+              "Should improve pace and structure in long-form responses",
+              "School English performance needs support"
+            ],
+            "notes": "Ravi appears naturally engaged by real-world technical challenges and tends to do better when learning is practical and scenario-based."
+          }
+        },
+        {
+          "student_id": "student-raj-001",
+          "relation": "son",
+          "username": "raj12",
+          "basic_profile": {
+            "name": "Raj Sharma",
+            "grade": "8",
+            "school": "Green Valley Public School",
+            "previous_academic": {
+              "percentage": 78
+            },
+            "favourite_subjects": ["Mathematics", "Computer Basics"],
+            "career_interests": ["Game Design", "Software", "Creative Technology"],
+            "preferred_learning_style": "Interactive and exploratory"
+          },
+          "school_performance": {
+            "overall": {
+              "status": "average",
+              "trend": "improving"
+            },
+            "subjects": [
+              {
+                "subject": "Mathematics",
+                "status": "good",
+                "trend": "improving"
+              },
+              {
+                "subject": "Science",
+                "status": "average",
+                "trend": "stable"
+              },
+              {
+                "subject": "English",
+                "status": "average",
+                "trend": "stable"
+              },
+              {
+                "subject": "Social Studies",
+                "status": "needs_attention",
+                "trend": "mixed"
+              }
+            ]
+          },
+          "platform_activity": {
+            "summary": {
+              "sessions": 24,
+              "quizzes_attempted": 14,
+              "simulations_completed": 8
+            }
+          },
+          "interest_signals": [
+            {
+              "area": "Creative Technology",
+              "score": 0.81
+            },
+            {
+              "area": "Game Logic",
+              "score": 0.78
+            },
+            {
+              "area": "Digital Problem Solving",
+              "score": 0.73
+            }
+          ],
+          "skill_signals": [
+            {
+              "skill": "Pattern Recognition",
+              "score": 0.72
+            },
+            {
+              "skill": "Logical Sequencing",
+              "score": 0.69
+            },
+            {
+              "skill": "Attention to Detail",
+              "score": 0.58
+            }
+          ],
+          "behavioral_traits": [
+            {
+              "trait": "Exploration",
+              "level": "high"
+            },
+            {
+              "trait": "Focus consistency",
+              "level": "moderate"
+            },
+            {
+              "trait": "Task completion",
+              "level": "good"
+            }
+          ],
+          "career_signals": [
+            {
+              "career": "Game Designer",
+              "affinity": 0.82
+            },
+            {
+              "career": "Software Developer",
+              "affinity": 0.73
+            },
+            {
+              "career": "UX Designer",
+              "affinity": 0.68
+            }
+          ],
+          "recent_activity": [
+            {
+              "type": "career_simulation",
+              "title": "Build a Simple Game Loop Challenge"
+            },
+            {
+              "type": "quiz",
+              "title": "Logic and Patterns Quiz"
+            },
+            {
+              "type": "career_exploration",
+              "title": "Game Designer Career Map"
+            }
+          ],
+          "profile_summary": {
+            "strengths": [
+              "Enjoys interactive and creative problem-solving tasks",
+              "Shows good engagement in technology-related simulations",
+              "Maths performance is improving in school"
+            ],
+            "improvement_areas": [
+              "Needs better consistency in focus across tasks",
+              "Should strengthen attention to detail",
+              "Social Studies school performance needs support"
+            ],
+            "notes": "Raj seems motivated by interactive digital challenges and responds well when activities feel playful and exploratory."
+          }
+        }
+      ]
+    },
+    {
+      "parent_id": "parent-meera-001",
+      "phone": "9123456780",
+      "name": "Meera Iyer",
+      "students": [
+        {
+          "student_id": "student-arjun-001",
+          "relation": "son",
+          "username": "arjun12",
+          "basic_profile": {
+            "name": "Arjun Iyer",
+            "grade": "12",
+            "school": "National Senior Secondary School",
+            "previous_academic": {
+              "percentage": 88
+            },
+            "favourite_subjects": ["Physics", "Computer Science", "Mathematics"],
+            "career_interests": ["Software Engineering", "Data Science", "Research"],
+            "preferred_learning_style": "Structured and goal-driven"
+          },
+          "school_performance": {
+            "overall": {
+              "status": "strong",
+              "trend": "stable"
+            },
+            "subjects": [
+              {
+                "subject": "Physics",
+                "status": "strong",
+                "trend": "stable"
+              },
+              {
+                "subject": "Computer Science",
+                "status": "strong",
+                "trend": "improving"
+              },
+              {
+                "subject": "Mathematics",
+                "status": "good",
+                "trend": "stable"
+              },
+              {
+                "subject": "English",
+                "status": "average",
+                "trend": "stable"
+              }
+            ]
+          },
+          "platform_activity": {
+            "summary": {
+              "sessions": 36,
+              "quizzes_attempted": 22,
+              "simulations_completed": 13
+            }
+          },
+          "interest_signals": [
+            {
+              "area": "Programming",
+              "score": 0.9
+            },
+            {
+              "area": "Analytical Systems",
+              "score": 0.84
+            },
+            {
+              "area": "Research-oriented Learning",
+              "score": 0.75
+            }
+          ],
+          "skill_signals": [
+            {
+              "skill": "Analytical Reasoning",
+              "score": 0.85
+            },
+            {
+              "skill": "Problem Decomposition",
+              "score": 0.82
+            },
+            {
+              "skill": "Time Management Under Pressure",
+              "score": 0.61
+            }
+          ],
+          "behavioral_traits": [
+            {
+              "trait": "Discipline",
+              "level": "high"
+            },
+            {
+              "trait": "Persistence",
+              "level": "good"
+            },
+            {
+              "trait": "Exam pressure handling",
+              "level": "moderate"
+            }
+          ],
+          "career_signals": [
+            {
+              "career": "Software Engineer",
+              "affinity": 0.89
+            },
+            {
+              "career": "Data Scientist",
+              "affinity": 0.82
+            },
+            {
+              "career": "Research Analyst",
+              "affinity": 0.71
+            }
+          ],
+          "recent_activity": [
+            {
+              "type": "career_simulation",
+              "title": "System Design for a Campus App"
+            },
+            {
+              "type": "quiz",
+              "title": "Python Logic and Algorithms Quiz"
+            },
+            {
+              "type": "career_exploration",
+              "title": "Data Scientist Career Path"
+            }
+          ],
+          "profile_summary": {
+            "strengths": [
+              "Strong alignment with programming and analytical careers",
+              "Performs well both on platform and in school Physics and Computer Science",
+              "Works well in structured problem-solving environments"
+            ],
+            "improvement_areas": [
+              "Needs better time management during exam preparation",
+              "Can improve handling of high-pressure decision tasks"
+            ],
+            "notes": "Arjun shows strong technical direction and appears well suited for careers that require logic, systems thinking, and sustained focus."
+          }
+        },
+        {
+          "student_id": "student-nitya-001",
+          "relation": "daughter",
+          "username": "nitya9",
+          "basic_profile": {
+            "name": "Nitya Iyer",
+            "grade": "9",
+            "school": "National Senior Secondary School",
+            "previous_academic": {
+              "percentage": 85
+            },
+            "favourite_subjects": ["Biology", "English", "Art"],
+            "career_interests": ["Life Sciences", "Psychology", "Design Communication"],
+            "preferred_learning_style": "Reflective and observation-based"
+          },
+          "school_performance": {
+            "overall": {
+              "status": "good",
+              "trend": "stable"
+            },
+            "subjects": [
+              {
+                "subject": "Biology",
+                "status": "strong",
+                "trend": "improving"
+              },
+              {
+                "subject": "English",
+                "status": "good",
+                "trend": "stable"
+              },
+              {
+                "subject": "Mathematics",
+                "status": "needs_attention",
+                "trend": "mixed"
+              },
+              {
+                "subject": "Social Studies",
+                "status": "good",
+                "trend": "stable"
+              }
+            ]
+          },
+          "platform_activity": {
+            "summary": {
+              "sessions": 27,
+              "quizzes_attempted": 17,
+              "simulations_completed": 9
+            }
+          },
+          "interest_signals": [
+            {
+              "area": "Life Sciences",
+              "score": 0.85
+            },
+            {
+              "area": "Observation-based Learning",
+              "score": 0.8
+            },
+            {
+              "area": "Creative Communication",
+              "score": 0.76
+            }
+          ],
+          "skill_signals": [
+            {
+              "skill": "Comprehension and Interpretation",
+              "score": 0.79
+            },
+            {
+              "skill": "Empathy-driven Decision Making",
+              "score": 0.74
+            },
+            {
+              "skill": "Quantitative Confidence",
+              "score": 0.49
+            }
+          ],
+          "behavioral_traits": [
+            {
+              "trait": "Thoughtfulness",
+              "level": "high"
+            },
+            {
+              "trait": "Consistency",
+              "level": "good"
+            },
+            {
+              "trait": "Confidence in large-group competition",
+              "level": "low_to_moderate"
+            }
+          ],
+          "career_signals": [
+            {
+              "career": "Biologist",
+              "affinity": 0.83
+            },
+            {
+              "career": "Psychologist",
+              "affinity": 0.75
+            },
+            {
+              "career": "Science Communicator",
+              "affinity": 0.71
+            }
+          ],
+          "recent_activity": [
+            {
+              "type": "career_simulation",
+              "title": "Habitat Restoration Decision Challenge"
+            },
+            {
+              "type": "quiz",
+              "title": "Human Body Systems Quiz"
+            },
+            {
+              "type": "career_exploration",
+              "title": "Biologist Career Journey"
+            }
+          ],
+          "profile_summary": {
+            "strengths": [
+              "Shows strong interest in biology and observation-led learning",
+              "Performs well in school Biology and English",
+              "Approaches reflective and people-oriented scenarios thoughtfully"
+            ],
+            "improvement_areas": [
+              "Needs more confidence in quantitative tasks",
+              "School Mathematics performance needs attention",
+              "Can benefit from more assertiveness in challenge-based settings"
+            ],
+            "notes": "Nitya appears to be a thoughtful learner who does well in areas involving observation, interpretation, and careful thinking."
+          }
+        }
+      ]
+    }
+  ]
+}

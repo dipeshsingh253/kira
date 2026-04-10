@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field
+from datetime import datetime, timezone
 from typing import Any, Optional, Dict
-from datetime import datetime
+
+from pydantic import BaseModel, Field
 
 
 class PaginationMeta(BaseModel):
@@ -11,7 +12,7 @@ class PaginationMeta(BaseModel):
 
 
 class Meta(BaseModel):
-    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     request_id: Optional[str] = None
     pagination: Optional[PaginationMeta] = None
 

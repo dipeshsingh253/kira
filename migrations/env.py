@@ -9,7 +9,7 @@ from alembic import context
 
 # Import your models here for autogenerate support
 from src.db.base import Base
-from src.modules.users.model import User  # Import all models
+from src.modules.conversations.model import Conversation, ConversationMessage
 from src.core.config import get_settings
 
 # this is the Alembic Config object, which provides
@@ -63,7 +63,11 @@ def run_migrations_offline() -> None:
 
 def do_run_migrations(connection: Connection) -> None:
     """Run migrations with the given connection."""
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+    )
 
     with context.begin_transaction():
         context.run_migrations()

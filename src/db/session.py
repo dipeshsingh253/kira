@@ -1,10 +1,10 @@
 from typing import AsyncGenerator
 
 from loguru import logger
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker, create_async_engine)
 
 from src.core.config import get_settings
-from src.db.base import Base
 
 # Global variables for database session management
 engine = None
@@ -31,18 +31,6 @@ async def init_db() -> None:
         autoflush=False,
     )
 
-    logger.info(f"Database initialized with URL: {settings.database_url}")
-
-
-async def create_tables() -> None:
-    if engine is None:
-        await init_db()
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    logger.info("Database tables created successfully")
-
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     if SessionLocal is None:
@@ -63,3 +51,16 @@ async def close_db() -> None:
     if engine:
         await engine.dispose()
         logger.info("Database connection closed")
+
+
+async def check_db_health() -> bool:
+    if SessionLocal is None:
+        await init_db()
+
+    async with SessionLocal() as session:
+        try:
+            await session.execute(text("SELECT 1"))
+            return True
+        except Exception:
+            logger.exception("Database health check failed")
+            return False
